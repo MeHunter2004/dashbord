@@ -11,6 +11,7 @@ frontend/*.tsbuildinfo
 # Local configuration and operational data
 backend/.env
 backend/data/*.xlsx
+frontend/.env
 
 # Editor and operating-system files
 .vscode/

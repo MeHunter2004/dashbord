@@ -1,20 +1,38 @@
+from threading import RLock
+
 import pandas as pd
+
 from app.core.statuses import high_level_status
 from app.repositories.base_repository import RequestRepository
 from app.schemas.common import FilterPayload, PagePayload
 
+
 class RequestService:
     def __init__(self, repository: RequestRepository):
         self.repository = repository
+        self._dataframe_cache: pd.DataFrame | None = None
+        self._options_cache: dict | None = None
+        self._cache_version = ''
+        self._lock = RLock()
 
     def dataframe(self) -> pd.DataFrame:
-        df = self.repository.load_requests()
-        df['HighLevelStatus'] = df['ReqStatus'].map(high_level_status)
-        df['Period'] = df['Yr'].astype(str) + '/' + df['Mth'].astype(str).str.zfill(2)
-        return df
+        source = self.repository.load_requests()
+        version = self.repository.data_version
+        if self._dataframe_cache is not None and version == self._cache_version:
+            return self._dataframe_cache
+
+        with self._lock:
+            if self._dataframe_cache is None or version != self._cache_version:
+                self._dataframe_cache = source.assign(
+                    HighLevelStatus=source['ReqStatus'].map(high_level_status),
+                    Period=source['Yr'].astype(str) + '/' + source['Mth'].astype(str).str.zfill(2),
+                )
+                self._options_cache = None
+                self._cache_version = version
+            return self._dataframe_cache
 
     def filter(self, payload: FilterPayload) -> pd.DataFrame:
-        df = self.dataframe()
+        dataframe = self.dataframe()
         selections = [
             ('Yr', payload.years), ('Mth', payload.months), ('ReqStatus', payload.statuses),
             ('RequestType', payload.request_types), ('Priority', payload.priorities),
@@ -22,71 +40,78 @@ class RequestService:
         ]
         for column, values in selections:
             if values:
-                df = df[df[column].isin(values)]
+                dataframe = dataframe[dataframe[column].isin(values)]
         if payload.only_sla_violated:
-            df = df[df['Violation_hrs'] > 0]
+            dataframe = dataframe[dataframe['Violation_hrs'] > 0]
         if payload.only_open:
-            df = df[df['HighLevelStatus'] == 'باز / در جریان']
-        return df
+            dataframe = dataframe[dataframe['HighLevelStatus'] == 'باز / در جریان']
+        return dataframe
 
     def options(self) -> dict:
-        df = self.dataframe()
-        return {
-            'years': sorted(df['Yr'].unique().tolist(), reverse=True),
-            'months': sorted(df['Mth'].unique().tolist()),
-            'statuses': sorted(df['ReqStatus'].unique().tolist()),
-            'request_types': sorted(df['RequestType'].unique().tolist()),
-            'priorities': sorted(df['Priority'].unique().tolist()),
-            'tech_groups': sorted(df['TechGroup'].unique().tolist()),
-            'techs': sorted(df['Tech'].unique().tolist()),
-            'categories': sorted(df['Category'].unique().tolist()),
-        }
+        dataframe = self.dataframe()
+        if self._options_cache is None:
+            self._options_cache = {
+                'years': sorted(dataframe['Yr'].unique().tolist(), reverse=True),
+                'months': sorted(dataframe['Mth'].unique().tolist()),
+                'statuses': sorted(dataframe['ReqStatus'].unique().tolist()),
+                'request_types': sorted(dataframe['RequestType'].unique().tolist()),
+                'priorities': sorted(dataframe['Priority'].unique().tolist()),
+                'tech_groups': sorted(dataframe['TechGroup'].unique().tolist()),
+                'techs': sorted(dataframe['Tech'].unique().tolist()),
+                'categories': sorted(dataframe['Category'].unique().tolist()),
+            }
+        return self._options_cache
 
     def kpis(self, payload: FilterPayload) -> dict:
-        df = self.filter(payload)
-        total = len(df)
+        dataframe = self.filter(payload)
+        total = len(dataframe)
         return {
             'total': total,
-            'open': int((df.HighLevelStatus == 'باز / در جریان').sum()),
-            'closed': int((df.HighLevelStatus == 'رسیدگی‌شده').sum()),
-            'rejected': int((df.HighLevelStatus == 'ردشده').sum()),
-            'sla_violated': int((df.Violation_hrs > 0).sum()),
-            'violation_hours_sum': round(float(df.Violation_hrs.sum()), 2),
-            'elapsed_hours_avg': round(float(df.Elapsed_hrs.mean()), 2) if total else 0,
-            'high_urgent': int(df.Priority.isin(['زیاد', 'اضطراری']).sum()),
+            'open': int((dataframe.HighLevelStatus == 'باز / در جریان').sum()),
+            'closed': int((dataframe.HighLevelStatus == 'رسیدگی‌شده').sum()),
+            'rejected': int((dataframe.HighLevelStatus == 'ردشده').sum()),
+            'sla_violated': int((dataframe.Violation_hrs > 0).sum()),
+            'violation_hours_sum': round(float(dataframe.Violation_hrs.sum()), 2),
+            'elapsed_hours_avg': round(float(dataframe.Elapsed_hrs.mean()), 2) if total else 0,
+            'high_urgent': int(dataframe.Priority.isin(['زیاد', 'اضطراری']).sum()),
         }
 
     def charts(self, payload: FilterPayload) -> dict:
-        df = self.filter(payload)
-        def count(column):
-            return [{'name': str(k), 'value': int(v)} for k, v in df[column].value_counts().items()]
-        monthly = df.groupby('Period', sort=True).agg(total=('ReqID', 'count'), sla=('Violation_hrs', lambda x: int((x > 0).sum()))).reset_index()
-        matrix = df.groupby(['RequestType', 'HighLevelStatus']).size().unstack(fill_value=0)
+        dataframe = self.filter(payload)
+
+        def count(column: str) -> list[dict]:
+            return [{'name': str(name), 'value': int(value)} for name, value in dataframe[column].value_counts().items()]
+
+        monthly = dataframe.groupby('Period', sort=True).agg(
+            total=('ReqID', 'count'),
+            sla=('Violation_hrs', lambda values: int((values > 0).sum())),
+        ).reset_index()
+        matrix = dataframe.groupby(['RequestType', 'HighLevelStatus']).size().unstack(fill_value=0)
         return {
             'status': count('HighLevelStatus'),
             'status_details': count('ReqStatus'),
             'priority': count('Priority'),
             'top_categories': count('Category')[:10],
+            'technicians': count('Tech'),
             'monthly': monthly.to_dict(orient='records'),
             'request_type_stacked': {
                 'categories': matrix.index.tolist(),
-                'series': [{'name': str(col), 'data': matrix[col].astype(int).tolist()} for col in matrix.columns],
+                'series': [{'name': str(column), 'data': matrix[column].astype(int).tolist()} for column in matrix.columns],
             },
         }
 
     def requests(self, payload: PagePayload) -> dict:
-        df = self.filter(payload)
+        dataframe = self.filter(payload)
         if payload.search.strip():
             needle = payload.search.strip().casefold()
-            cols = ['ReqID', 'Tech', 'TechGroup', 'Category', 'ReqStatus']
-            mask = pd.Series(False, index=df.index)
-            for col in cols:
-                mask |= df[col].astype(str).str.casefold().str.contains(needle, regex=False)
-            df = df[mask]
-        allowed = set(df.columns)
-        sort_by = payload.sort_by if payload.sort_by in allowed else 'ReqID'
-        df = df.sort_values(sort_by, ascending=not payload.sort_desc)
-        total = len(df)
+            columns = ['ReqID', 'Tech', 'TechGroup', 'Category', 'ReqStatus']
+            mask = pd.Series(False, index=dataframe.index)
+            for column in columns:
+                mask |= dataframe[column].astype(str).str.casefold().str.contains(needle, regex=False)
+            dataframe = dataframe[mask]
+        sort_by = payload.sort_by if payload.sort_by in dataframe.columns else 'ReqID'
+        dataframe = dataframe.sort_values(sort_by, ascending=not payload.sort_desc)
+        total = len(dataframe)
         start = (payload.page - 1) * payload.page_size
-        rows = df.iloc[start:start + payload.page_size].to_dict(orient='records')
+        rows = dataframe.iloc[start:start + payload.page_size].to_dict(orient='records')
         return {'total': total, 'page': payload.page, 'page_size': payload.page_size, 'rows': rows}
