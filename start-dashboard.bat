@@ -17,7 +17,7 @@ if not exist "frontend\node_modules" (
   call npm.cmd --prefix frontend install || goto :failed
 )
 
-for /f "usebackq delims=" %%I in (`powershell -NoProfile -Command "(Get-NetIPAddress -AddressFamily IPv4 ^| Where-Object {$_.IPAddress -notlike '127.*' -and $_.PrefixOrigin -ne 'WellKnown'} ^| Select-Object -First 1 -ExpandProperty IPAddress)"`) do set "DASHBOARD_IP=%%I"
+for /f "tokens=4" %%I in ('route print -4 ^| findstr /R /C:"^[ ]*0.0.0.0[ ]*0.0.0.0"') do set "DASHBOARD_IP=%%I"
 if not defined DASHBOARD_IP set "DASHBOARD_IP=127.0.0.1"
 
 netstat -ano | findstr /C:":8000 " | findstr LISTENING >nul && goto :backend_running
