@@ -24,7 +24,7 @@ request-dashboard-mvp/
 
 روی ویندوز این موارد باید نصب باشند:
 
-- Python 3.11 یا جدیدتر: `python --version`
+- Python 3.11، 3.12 یا 3.13: `python --version`
 - Node.js 18 یا جدیدتر: `node --version`
 - npm (همراه Node.js نصب می‌شود): `npm.cmd --version`
 
@@ -172,13 +172,13 @@ python -m uvicorn app.main:app --reload --port 8000
 
 ### لانچر هنگام `Preparing the Python environment` متوقف می‌شود
 
-نسخه جدید `start-dashboard.bat` علت دقیق را نشان می‌دهد. ابتدا مطمئن شوید Python 3.11 یا جدیدتر از [python.org](https://www.python.org/downloads/windows/) نصب شده و در زمان نصب گزینه `Add Python to PATH` فعال شده است. سپس یک CMD جدید باز کرده و این دستور را اجرا کنید:
+نسخه جدید `start-dashboard.bat` علت دقیق را نشان می‌دهد. ابتدا مطمئن شوید Python 3.11، 3.12 یا 3.13 از [python.org](https://www.python.org/downloads/windows/) نصب شده و در زمان نصب گزینه `Add Python to PATH` فعال شده است. سپس یک CMD جدید باز کرده و این دستور را اجرا کنید:
 
 ```bat
 python --version
 ```
 
-اگر نسخه نمایش داده نشد یا پایین‌تر از 3.11 بود، نصب Python را اصلاح کنید. اگر پیام خطا مربوط به نصب packageها بود، اتصال اینترنت، proxy سازمان و محدودیت antivirus را بررسی کنید؛ نصب اولیه به دانلود packageها نیاز دارد.
+اگر نسخه نمایش داده نشد، پایین‌تر از 3.11 بود یا `3.14` بود، Python 3.13 را نصب کنید. اگر پیام خطا مربوط به نصب packageها و `pypi.org` بود، اتصال اینترنت، proxy سازمان و محدودیت antivirus را بررسی کنید؛ نصب اولیه به دانلود packageها نیاز دارد و IT باید دسترسی HTTPS به `pypi.org` و `files.pythonhosted.org` را مجاز کند.
 
 ### خطای `WinError 10013` یا اشغال بودن پورت `8000`
 
@@ -234,7 +234,7 @@ VITE_API_BASE_URL=https://dashboard.example.com/api
 ## راهنمای انتقال و راه‌اندازی اولیه برای کارفرما
 
 1. پوشه کامل `request-dashboard-mvp` را به رایانه کارفرما منتقل کنید؛ پوشه `backend/data` و فایل Excel داخل آن را حتماً حفظ کنید.
-2. Python 3.11 یا جدیدتر و Node.js 18 یا جدیدتر را نصب کنید و یک‌بار رایانه را باز و بسته کنید.
+2. Python 3.11، 3.12 یا 3.13 و Node.js 18 یا جدیدتر را نصب کنید و یک‌بار رایانه را باز و بسته کنید.
 3. روی `start-dashboard.bat` دابل‌کلیک کنید. در بار اول اتصال اینترنت برای نصب وابستگی‌ها لازم است.
 4. پس از نمایش آدرس، داشبورد را روی همان رایانه یا تلفن همراه باز کنید.
 5. برای به‌روزرسانی داده‌ها، فایل Excel را با همان نام در `backend/data` جایگزین و در داشبورد دکمه `بروزرسانی داده‌ها` را بزنید.

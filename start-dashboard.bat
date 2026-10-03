@@ -3,7 +3,7 @@ setlocal EnableExtensions
 cd /d "%~dp0"
 
 where python >nul 2>nul || goto :missing_python
-python -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)" >nul 2>nul || goto :invalid_python
+python -c "import sys; raise SystemExit(0 if (3, 11) <= sys.version_info[:2] < (3, 14) else 1)" >nul 2>nul || goto :invalid_python
 where npm.cmd >nul 2>nul || goto :missing_node
 
 if not exist "backend\.venv\Scripts\python.exe" (
@@ -12,9 +12,7 @@ if not exist "backend\.venv\Scripts\python.exe" (
   python -m venv backend\.venv
   if errorlevel 1 goto :venv_failed
   echo Installing backend dependencies. This can take a few minutes...
-  backend\.venv\Scripts\python.exe -m pip install --upgrade pip
-  if errorlevel 1 goto :pip_failed
-  backend\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
+  backend\.venv\Scripts\python.exe -m pip install --disable-pip-version-check -r backend\requirements.txt
   if errorlevel 1 goto :pip_failed
 )
 
@@ -54,14 +52,14 @@ pause
 exit /b 1
 
 :missing_python
-echo Python 3.11 or newer was not found.
+echo Python 3.11, 3.12, or 3.13 was not found.
 echo Install it from https://www.python.org/downloads/windows/
 echo During installation, select "Add Python to PATH", then run this file again.
 pause
 exit /b 1
 
 :invalid_python
-echo Python 3.11 or newer is required.
+echo Python 3.11, 3.12, or 3.13 is required. Python 3.14 is not yet supported.
 echo Run "python --version" to check the installed version, then run this file again.
 pause
 exit /b 1
@@ -73,12 +71,14 @@ exit /b 1
 
 :venv_failed
 echo Creating the Python environment failed.
-echo Verify that Python 3.11 or newer is fully installed, then run this file again.
+echo Verify that Python 3.11, 3.12, or 3.13 is fully installed, then run this file again.
 pause
 exit /b 1
 
 :pip_failed
 echo Installing Python packages failed.
-echo Check the internet connection and any company proxy or antivirus restrictions, then run this file again.
+echo The installer could not download packages from PyPI.
+echo Check the internet connection and ask IT to allow pypi.org and files.pythonhosted.org over HTTPS.
+echo If your organization uses a proxy, configure it before running this file again.
 pause
 exit /b 1
