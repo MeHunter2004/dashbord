@@ -1,8 +1,11 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
+import sys
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.staticfiles import StaticFiles
 from app.api.routes_dashboard import router as dashboard_router
 from app.api.routes_filters import router as filters_router
 from app.api.routes_requests import router as requests_router
@@ -45,3 +48,8 @@ app.include_router(requests_router, prefix='/api')
 @app.get('/health')
 def health():
     return {'status': 'ok'}
+
+resource_root = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parents[2]))
+frontend_dist = resource_root / 'frontend' / 'dist'
+if frontend_dist.is_dir():
+    app.mount('/', StaticFiles(directory=frontend_dist, html=True), name='frontend')

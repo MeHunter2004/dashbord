@@ -13,6 +13,13 @@ backend/.env
 backend/data/*.xlsx
 frontend/.env
 
+# Generated offline distribution
+offline/build/
+offline/work/
+offline/package/
+offline/releases/*.zip
+!offline/releases/EDR-Dashboard-Offline-v2.zip
+
 # Editor and operating-system files
 .vscode/
 .idea/
