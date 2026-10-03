@@ -3,13 +3,19 @@ setlocal EnableExtensions
 cd /d "%~dp0"
 
 where python >nul 2>nul || goto :missing_python
+python -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)" >nul 2>nul || goto :invalid_python
 where npm.cmd >nul 2>nul || goto :missing_node
 
 if not exist "backend\.venv\Scripts\python.exe" (
   echo Preparing the Python environment. This is only needed once...
-  python -m venv backend\.venv || goto :failed
-  call backend\.venv\Scripts\activate.bat
-  python -m pip install -r backend\requirements.txt || goto :failed
+  echo Creating the virtual environment...
+  python -m venv backend\.venv
+  if errorlevel 1 goto :venv_failed
+  echo Installing backend dependencies. This can take a few minutes...
+  backend\.venv\Scripts\python.exe -m pip install --upgrade pip
+  if errorlevel 1 goto :pip_failed
+  backend\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
+  if errorlevel 1 goto :pip_failed
 )
 
 if not exist "frontend\node_modules" (
@@ -48,7 +54,15 @@ pause
 exit /b 1
 
 :missing_python
-echo Python 3.11 or newer was not found. Install it, then run this file again.
+echo Python 3.11 or newer was not found.
+echo Install it from https://www.python.org/downloads/windows/
+echo During installation, select "Add Python to PATH", then run this file again.
+pause
+exit /b 1
+
+:invalid_python
+echo Python 3.11 or newer is required.
+echo Run "python --version" to check the installed version, then run this file again.
 pause
 exit /b 1
 
@@ -57,7 +71,14 @@ echo Node.js 18 or newer was not found. Install it, then run this file again.
 pause
 exit /b 1
 
-:failed
-echo Setup did not finish. Review the message above and run this file again.
+:venv_failed
+echo Creating the Python environment failed.
+echo Verify that Python 3.11 or newer is fully installed, then run this file again.
+pause
+exit /b 1
+
+:pip_failed
+echo Installing Python packages failed.
+echo Check the internet connection and any company proxy or antivirus restrictions, then run this file again.
 pause
 exit /b 1
